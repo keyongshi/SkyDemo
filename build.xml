@@ -1,0 +1,160 @@
+<?xml version="1.0"?>
+<project name="trackerSpt" basedir="." default="all">
+	<property name="appName" value="SkyDemo" />
+	<property name="moduleName" value="SkyDemo" />
+
+	<property name="buildDir" value="${basedir}/build" />
+	<property name="libDir" value="${basedir}/lib" />
+	<property name="javaSourceDir" value="${basedir}/src" />
+	<property name="configDir" value="${basedir}/conf" />
+	<property name="testDir" value="${basedir}/test" />
+
+	<!-- This may get overridden when we are called from Anthill. -->
+	<property name="deployDir" value="${buildDir}" />
+	<property name="classDir" value="${buildDir}/classes" />
+	<property name="classLibDir" value="${buildDir}/classes/lib" />
+	<property name="distDir" value="${deployDir}/dist" />
+	<property name="junitDir" value="${deployDir}/JUnit" />
+	<property name="javadocDir" value="${deployDir}/apidoc" />
+	<property name="packageName" value="SkyDemo" />
+	<property name="packageDir" value="${distDir}/${packageName}" />
+	<property name="TrackerSupportMain" value="com.sky.evidence.test" />
+
+	<target name="init" depends="clean">
+		<!-- Create the directories where we put all the build products. -->
+		<mkdir dir="${buildDir}" />
+		<mkdir dir="${classDir}" />
+		<mkdir dir="${classLibDir}" />
+		<mkdir dir="${distDir}" />
+		<mkdir dir="${junitDir}" />
+		<mkdir dir="${javadocDir}" />
+		<mkdir dir="${packageDir}" />
+		<path id="compileClasspath">
+			<fileset dir="${libDir}">
+				<include name="*.jar" />
+			</fileset>
+			<pathelement path="${configDir}" />
+		</path>
+
+		<!-- Make available build info in such a way that we can display it to the user. 
+        <taskdef name="jreleaseinfo" classname="ch.oscg.jreleaseinfo.anttask.JReleaseInfoAntTask">
+            <classpath refid="compileClasspath"/>
+        </taskdef>
+
+        <jreleaseinfo className="MyReleaseInfo" packageName="com.johnmunsch.${appName}"
+                targetDir="${javaSourceDir}" project="${appName}" version="${version}" 
+                buildNumFile="buildnum.properties" buildNumProperty="buildnum">
+            <parameter name="VersionNum" type="int" value="1" />
+            <parameter name="RevisionNum" type="Integer" value="0" />
+        </jreleaseinfo>
+-->
+	</target>
+
+	<target name="compile" depends="init">
+		<javac srcdir="${javaSourceDir}" destdir="${classDir}" debug="true" deprecation="true" source="1.5" target="1.5">
+			<classpath refid="compileClasspath" />
+		</javac>
+
+		<!-- Copy files needed to run the software to destinations in the 
+         build directory. I do this because I usually pull all binary files like
+         this from inside the Jar files that make up my application rather than
+         having them loose. So they need to be copied to the class dir so they
+         get included in the Jar file for the application. -->
+		<copy todir="${classDir}">
+			<fileset dir="${javaSourceDir}">
+				<include name="**/*.gif" />
+				<include name="**/*.jpg" />
+				<include name="**/*.png" />
+				<include name="**/*.wav" />
+				<include name="**/*.dtd" />
+				<include name="**/*.properties" />
+				<include name="**/*.xml" />
+				<include name="**/*.conf" />
+				<include name="**/*.ccf" />
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="jar" depends="init,compile">
+		<pathconvert property="mf.classpath" pathsep=" ">
+			<path refid="compileClasspath" />
+			<map from="${libDir}" to="lib" />
+			<map from="${configDir}" to="conf/" />
+		</pathconvert>
+
+		<jar destfile="${packageDir}/${appName}.jar" basedir="${classDir}" compress="true">
+			<manifest>
+				<attribute name="Main-Class" value="${TrackerSupportMain}" />
+				<attribute name="Class-Path" value="${mf.classpath}" />
+			</manifest>
+		</jar>
+	</target>
+	
+	<target name="tar" depends="jar" description="tar package built.">
+			<copy todir="${packageDir}">
+				<fileset dir="${basedir}">
+					<include name="lib/" />
+					<include name="conf/" />
+					<include name="PROG_VERSION.def" />
+				</fileset>
+			</copy>
+
+			<tar destfile="${packageDir}.tar.gz" compression="gzip" basedir="${distDir}">
+			</tar>
+
+			<delete dir="${packageDir}" />
+			<echo message="tar package built." />
+		</target>
+
+	<target name="all" depends="tar" description="Build everything.">
+		<echo message="Application built." />
+	</target>
+
+	<target name="javadoc" depends="init" description="Javadoc for the code.">
+		<javadoc packagenames="*" sourcepath="${javaSourceDir}" destdir="${javadocDir}" />
+	</target>
+
+	<target name="clean" description="Clean all build products.">
+		<delete dir="${tempDir}" />
+		<delete dir="${javadocDir}" />
+		<delete dir="${junitDir}" />
+		<delete dir="${distDir}" />
+		<delete dir="${classDir}" />
+		<delete dir="${packageDir}" />
+		<delete dir="${buildDir}" />
+	</target>
+
+	<target name="junit" depends="jar" description="Performs unit tests.">
+		<javac srcdir="test" destdir="${classDir}" debug="true" deprecation="true">
+			<classpath refid="compileClasspath" />
+		</javac>
+
+		<mkdir dir="${tempDir}" />
+
+		<junit failureproperty="junit.failed">
+			<formatter type="xml" />
+			<batchtest todir="${tempDir}">
+				<fileset dir="${classDir}">
+					<include name="**/*Test.class" />
+					<include name="**/Test*.class" />
+				</fileset>
+			</batchtest>
+			<classpath>
+				<path refid="compileClasspath" />
+				<pathelement location="${classDir}" />
+			</classpath>
+		</junit>
+
+		<mkdir dir="${buildDir}/JUnit" />
+
+		<junitreport tofile="TESTS-TestSuites.xml" todir="${tempDir}">
+			<fileset dir="${tempDir}">
+				<include name="TEST-*.xml" />
+			</fileset>
+			<report todir="${junitDir}" />
+		</junitreport>
+
+		<fail message="JUnit test failure." if="junit.failed" />
+	</target>
+</project>
+
